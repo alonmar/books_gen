@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de Libros</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f8f9fa;
+            color: #212529;
+        }
+
+        .header {
+            background-color: #343a40;
+            color: white;
+            padding: 2rem 1rem;
+            text-align: center;
+            border-bottom: 5px solid #198754;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        .card {
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card-header {
+            background-color: #198754;
+            color: white;
+            border-radius: 10px 10px 0 0 !important;
+            font-weight: bold;
+            padding: 1rem;
+        }
+
+        .btn-success {
+            background-color: #198754;
+            border-color: #198754;
+        }
+
+        .btn-success:hover {
+            background-color: #146c43;
+            border-color: #146c43;
+        }
+
+        .nav-tabs .nav-link.active {
+            background-color: #198754;
+            color: white;
+            border-color: #198754;
+        }
+
+        .book-cover {
+            height: 200px;
+            background-color: #343a40;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 5px;
+            margin-bottom: 1rem;
+            font-weight: bold;
+            text-align: center;
+            padding: 1rem;
+        }
+
+        .spinner {
+            margin: 2rem auto;
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(0, 0, 0, 0.1);
+            border-top-color: #198754;
+            border-radius: 50%;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .chapter-list {
+            list-style-type: none;
+            padding-left: 0;
+        }
+
+        .chapter-item {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e9ecef;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .chapter-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .subchapter-list {
+            list-style-type: none;
+            padding-left: 1.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .chapter-content {
+            white-space: pre-wrap;
+            font-size: 1.1rem;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>Generador de Libros con IA</h1>
+        <p class="lead">Crea libros completos usando modelos de lenguaje avanzados</p>
+    </div>
+
+    <div class="container">
+        <ul class="nav nav-tabs mb-4" id="myTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="create-tab" data-bs-toggle="tab" data-bs-target="#create"
+                    type="button" role="tab" aria-controls="create" aria-selected="true">Crear Libro</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="books-tab" data-bs-toggle="tab" data-bs-target="#books" type="button"
+                    role="tab" aria-controls="books" aria-selected="false">Mis Libros</button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="myTabContent">
+            <!-- Pestaña de Crear Libro -->
+            <div class="tab-pane fade show active" id="create" role="tabpanel" aria-labelledby="create-tab">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Nuevo Libro</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="newBookForm">
+                            <div class="mb-3">
+                                <label for="bookTitle" class="form-label">Título del Libro</label>
+                                <input type="text" class="form-control" id="bookTitle"
+                                    placeholder="Ej: El misterio de la montaña azul" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="bookSynopsis" class="form-label">Sinopsis</label>
+                                <textarea class="form-control" id="bookSynopsis" rows="5"
+                                    placeholder="Describe brevemente la trama principal de tu libro..."
+                                    required></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-success btn-lg w-100">Generar Índice del Libro</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div id="generationProgress" style="display: none;">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Generando Libro...</h5>
+                        </div>
+                        <div class="card-body text-center">
+                            <div class="spinner"></div>
+                            <p class="mt-3" id="generationStatus">Procesando tu solicitud...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pestaña de Mis Libros -->
+            <div class="tab-pane fade" id="books" role="tabpanel" aria-labelledby="books-tab">
+                <div class="row" id="booksList">
+                    <div class="col-12 text-center">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para ver el índice del libro -->
+    <div class="modal fade" id="bookIndexModal" tabindex="-1" aria-labelledby="bookIndexModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="bookIndexModalLabel">Índice del Libro</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-4">
+                        <h6>Sinopsis:</h6>
+                        <p id="modalBookSynopsis"></p>
+                    </div>
+                    <h6>Capítulos:</h6>
+                    <ul class="chapter-list" id="chapterList"></ul>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para ver el contenido del capítulo -->
+    <div class="modal fade" id="chapterContentModal" tabindex="-1" aria-labelledby="chapterContentModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="chapterContentModalLabel">Contenido del Capítulo</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="generatingChapterSpinner" class="text-center" style="display: none;">
+                        <div class="spinner"></div>
+                        <p class="mt-3">Generando contenido del capítulo...</p>
+                    </div>
+                    <div id="chapterContentContainer">
+                        <p class="chapter-content" id="chapterContent"></p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Configuración de la API
+        const API_URL = 'http://127.0.0.1:8000';
+
+        // Variables para control de estado
+        let currentBookId = '';
+        let currentChapterId = '';
+        let jobCheckInterval = null;
+
+        // Al cargar la página
+        document.addEventListener('DOMContentLoaded', function () {
+            const createTab = document.getElementById('create-tab');
+            const booksTab = document.getElementById('books-tab');
+
+            // Cargar libros al hacer clic en la pestaña
+            booksTab.addEventListener('click', loadBooks);
+
+            // Formulario para crear libro
+            const newBookForm = document.getElementById('newBookForm');
+            newBookForm.addEventListener('submit', createNewBook);
+        });
+
+        // Función para cargar la lista de libros
+        function loadBooks() {
+            const booksListContainer = document.getElementById('booksList');
+            booksListContainer.innerHTML = '<div class="col-12 text-center"><div class="spinner"></div></div>';
+
+            fetch(`${API_URL}/books`)
+                .then(response => response.json())
+                .then(books => {
+                    if (books.length === 0) {
+                        booksListContainer.innerHTML = `
+                            <div class="col-12 text-center">
+                                <p class="text-muted">No tienes libros creados aún.</p>
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    booksListContainer.innerHTML = '';
+                    books.forEach(book => {
+                        const bookCard = document.createElement('div');
+                        bookCard.className = 'col-md-4 mb-4';
+                        bookCard.innerHTML = `
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <div class="book-cover">
+                                        ${book.title}
+                                    </div>
+                                    <h5 class="card-title">${book.title}</h5>
+                                    <p class="card-text">${book.synopsis.substring(0, 100)}${book.synopsis.length > 100 ? '...' : ''}</p>
+                                </div>
+                                <div class="card-footer bg-white">
+                                    <button class="btn btn-success w-100" onclick="viewBookIndex('${book.id}')">Ver Índice</button>
+                                </div>
+                            </div>
+                        `;
+                        booksListContainer.appendChild(bookCard);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error al cargar los libros:', error);
+                    booksListContainer.innerHTML = `
+                        <div class="col-12 text-center">
+                            <p class="text-danger">Error al cargar los libros. Por favor, intenta más tarde.</p>
+                        </div>
+                    `;
+                });
+        }
+
+        // Función para crear un nuevo libro
+        function createNewBook(event) {
+            event.preventDefault();
+
+            const title = document.getElementById('bookTitle').value;
+            const synopsis = document.getElementById('bookSynopsis').value;
+
+            document.getElementById('newBookForm').style.display = 'none';
+            document.getElementById('generationProgress').style.display = 'block';
+
+            fetch(`${API_URL}/books`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    title: title,
+                    synopsis: synopsis
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('generationStatus').textContent = `Generando índice para "${title}"...`;
+                    checkJobStatus(data.job_id);
+                })
+                .catch(error => {
+                    console.error('Error al crear el libro:', error);
+                    document.getElementById('generationStatus').textContent = 'Error al crear el libro. Por favor, intenta de nuevo.';
+                    setTimeout(() => {
+                        document.getElementById('newBookForm').style.display = 'block';
+                        document.getElementById('generationProgress').style.display = 'none';
+                    }, 3000);
+                });
+        }
+
+        // Función para verificar el estado de un trabajo
+        function checkJobStatus(jobId) {
+            jobCheckInterval = setInterval(() => {
+                fetch(`${API_URL}/jobs/${jobId}`)
+                    .then(response => response.json())
+                    .then(job => {
+                        if (job.status === 'completed') {
+                            clearInterval(jobCheckInterval);
+                            document.getElementById('generationStatus').textContent = 'Índice generado con éxito!';
+                            setTimeout(() => {
+                                document.getElementById('newBookForm').style.display = 'block';
+                                document.getElementById('generationProgress').style.display = 'none';
+                                document.getElementById('bookTitle').value = '';
+                                document.getElementById('bookSynopsis').value = '';
+
+                                // Mostrar la pestaña de libros y cargar los libros
+                                document.getElementById('books-tab').click();
+                            }, 2000);
+                        } else if (job.status === 'error') {
+                            clearInterval(jobCheckInterval);
+                            document.getElementById('generationStatus').textContent = `Error: ${job.error}`;
+                            setTimeout(() => {
+                                document.getElementById('newBookForm').style.display = 'block';
+                                document.getElementById('generationProgress').style.display = 'none';
+                            }, 3000);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error al verificar el estado del trabajo:', error);
+                    });
+            }, 2000);
+        }
+
+        // Función para ver el índice de un libro
+        function viewBookIndex(bookId) {
+            currentBookId = bookId;
+
+            fetch(`${API_URL}/books/${bookId}`)
+                .then(response => response.json())
+                .then(book => {
+                    document.getElementById('bookIndexModalLabel').textContent = book.title;
+                    document.getElementById('modalBookSynopsis').textContent = book.synopsis;
+
+                    const chapterList = document.getElementById('chapterList');
+                    chapterList.innerHTML = '';
+
+                    book.index.chapters.forEach(chapter => {
+                        const chapterItem = document.createElement('li');
+                        chapterItem.className = 'chapter-item';
+
+                        let chapterContent = `
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>${chapter.title}</span>
+                                <button class="btn btn-sm btn-outline-success" onclick="viewChapterContent('${chapter.id}', '${chapter.title}')">
+                                    ${chapter.content ? 'Ver contenido' : 'Generar contenido'}
+                                </button>
+                            </div>
+                        `;
+
+                        if (chapter.subchapters && chapter.subchapters.length > 0) {
+                            chapterContent += '<ul class="subchapter-list mt-2">';
+                            chapter.subchapters.forEach(subchapter => {
+                                chapterContent += `
+                                    <li class="d-flex justify-content-between align-items-center mb-2">
+                                        <span>${subchapter.title}</span>
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="viewChapterContent('${subchapter.id}', '${subchapter.title}')">
+                                            ${subchapter.content ? 'Ver contenido' : 'Generar contenido'}
+                                        </button>
+                                    </li>
+                                `;
+                            });
+                            chapterContent += '</ul>';
+                        }
+
+                        chapterItem.innerHTML = chapterContent;
+                        chapterList.appendChild(chapterItem);
+                    });
+
+                    const bookIndexModal = new bootstrap.Modal(document.getElementById('bookIndexModal'));
+                    bookIndexModal.show();
+                })
+                .catch(error => {
+                    console.error('Error al cargar el índice del libro:', error);
+                });
+        }
+
+        // Función para ver o generar el contenido de un capítulo
+        function viewChapterContent(chapterId, chapterTitle) {
+            currentChapterId = chapterId;
+
+            document.getElementById('chapterContentModalLabel').textContent = chapterTitle;
+            document.getElementById('chapterContent').textContent = '';
+            document.getElementById('generatingChapterSpinner').style.display = 'block';
+            document.getElementById('chapterContentContainer').style.display = 'none';
+
+            const chapterContentModal = new bootstrap.Modal(document.getElementById('chapterContentModal'));
+            chapterContentModal.show();
+
+            fetch(`${API_URL}/books/${currentBookId}/chapters/${chapterId}`, {
+                method: 'POST'
+            })
+                .then(response => response.json())
+                .then(data => {
+                    checkChapterGenerationStatus(data.job_id);
+                })
+                .catch(error => {
+                    console.error('Error al generar el contenido del capítulo:', error);
+                    document.getElementById('generatingChapterSpinner').style.display = 'none';
+                    document.getElementById('chapterContentContainer').style.display = 'block';
+                    document.getElementById('chapterContent').textContent = 'Error al generar el contenido. Por favor, intenta de nuevo.';
+                });
+        }
+
+        // Función para verificar el estado de generación de un capítulo
+        function checkChapterGenerationStatus(jobId) {
+            let checkInterval = setInterval(() => {
+                fetch(`${API_URL}/jobs/${jobId}`)
+                    .then(response => response.json())
+                    .then(job => {
+                        if (job.status === 'completed') {
+                            clearInterval(checkInterval);
+
+                            // Obtener el libro actualizado para ver el contenido del capítulo
+                            fetch(`${API_URL}/books/${currentBookId}`)
+                                .then(response => response.json())
+                                .then(book => {
+                                    let chapterContent = '';
+
+                                    // Buscar el contenido del capítulo
+                                    for (const chapter of book.index.chapters) {
+                                        if (chapter.id === currentChapterId && chapter.content) {
+                                            chapterContent = chapter.content;
+                                            break;
+                                        }
+
+                                        // Buscar en subcapítulos
+                                        if (chapter.subchapters) {
+                                            for (const subchapter of chapter.subchapters) {
+                                                if (subchapter.id === currentChapterId && subchapter.content) {
+                                                    chapterContent = subchapter.content;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    document.getElementById('generatingChapterSpinner').style.display = 'none';
+                                    document.getElementById('chapterContentContainer').style.display = 'block';
+                                    document.getElementById('chapterContent').textContent = chapterContent || 'No se encontró contenido para este capítulo.';
+                                })
+                                .catch(error => {
+                                    console.error('Error al cargar el contenido del capítulo:', error);
+                                });
+                        } else if (job.status === 'error') {
+                            clearInterval(checkInterval);
+                            document.getElementById('generatingChapterSpinner').style.display = 'none';
+                            document.getElementById('chapterContentContainer').style.display = 'block';
+                            document.getElementById('chapterContent').textContent = `Error: ${job.error}`;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error al verificar el estado de generación del capítulo:', error);
+                    });
+            }, 2000);
+        }
+    </script>
+</body>
+
+</html>
