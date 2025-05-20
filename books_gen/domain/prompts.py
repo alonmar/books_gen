@@ -34,29 +34,7 @@ class Prompt:
 # --- Index ---
 
 __EDITOR_INDEX_CARD = """
-Eres un asistente experto en literatura y creación de libros. Tu tarea es generar un índice
-detallado para un libro basado en el título y la sinopsis proporcionados.
-Debes tambien incluir una breve descripción de cada capítulo.
-
-El índice debe seguir este formato JSON:
-{
-  "chapters": [
-    {
-      "id": "cap_1",
-      "title": "Título del Capítulo 1",
-      "description": "Descripción del Capítulo 1",
-    },
-    {
-      "id": "cap_2",
-      "title": "Título del Capítulo 2",
-      "description": "Descripción del Capítulo 1",
-    }
-  ]
-}
-
-Genera entre 5 y 10 capítulos Asegúrate de que los títulos sean creativos, interesantes y 
-relevantes para la sinopsis del libro, la description debe de dar una idea de lo que deberia 
-de contener el libro y debe de ser coherente con el indice.
+Eres un asistente experto en literatura y creación de libros. 
 """
 
 EDITOR_INDEX_CARD = Prompt(
@@ -65,12 +43,35 @@ EDITOR_INDEX_CARD = Prompt(
 )
 
 __INDEX_PROMPT = """
-Genera un índice para un libro con la siguiente información:
+Eres un experto creador de índices de libros. Tu tarea es crear un índice detallado para un libro basado en la siguiente información:
     
 Título: {{title}}
 Sinopsis: {{synopsis}}
+Estilo: {{book_style}}
+Páginas aproximadas: {{pages}}
 
-Responde ÚNICAMENTE con el formato JSON especificado.
+Genera un índice. Para cada capítulo, incluye:
+    1. Un título atractivo y relevante
+    2. Una breve descripción de lo que ocurrirá en ese capítulo
+    3. Un identificador único para cada capítulo (ejemplo: 1, 2, etc.)
+
+
+El índice debe seguir este formato JSON:
+{
+  "chapters": [
+    {
+      "id": "1",
+      "title": "Título del Capítulo 1",
+      "description": "Descripción del Capítulo 1",
+    },
+    {
+      "id": "2",
+      "title": "Título del Capítulo 2",
+      "description": "Descripción del Capítulo 1",
+    }
+  ]
+}
+
 """
 
 INDEX_PROMPT = Prompt(
@@ -95,17 +96,34 @@ EDITOR_CHAPTER_CARD = Prompt(
 )
 
 __CHAPTER_PROMPT = """
-Escribe el contenido para el capítulo "{{chapter_title}}" del libro:
+Eres un experto escritor de libros en el estilo {{book_style}}.
+
+CONTEXTO DEL LIBRO:
     
-Título del libro: {{title}}
-Sinopsis del libro: {{synopsis}}
-Descripción del capítulo: {{chapter_description}}
-index: {{index}}
+Título: {{title}}
+Sinopsis: {{synopsis}}
+
+{{previous_chapters_summary}}
+
+ÍNDICE DEL LIBRO:
+{{index_format}}
 
     
 Contexto adicional del capítulo: {{chapter_context}}
     
-Escribe el contenido completo del capítulo.
+TU TAREA:
+Escribe el Capítulo {{current_chapter_num}}: "{{chapter_title}}"
+Descripción del capítulo: {{chapter_description}}
+
+INSTRUCCIONES:
+1. Escribe un capítulo completo y coherente de aproximadamente {{TARGET_CHAPTER_WORDS}} palabras.
+2. Mantén la coherencia con los capítulos anteriores.
+3. Sigue el estilo literario especificado: {{book_style}}.
+4. El contenido debe reflejar la descripción del capítulo en el índice.
+5. Asegúrate de que el capítulo avance la trama según lo previsto en el índice general.
+6. No incluyas "Capítulo X" o el título en el texto, solo el contenido narrativo.
+
+Responde con el texto completo del capítulo.
 """
 
 CHAPTER_PROMPT = Prompt(

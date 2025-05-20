@@ -2,13 +2,14 @@
 Grafo de flujos para la generación de libros utilizando LangGraph.
 """
 
-from langgraph.graph import StateGraph, END
+from langgraph.graph import StateGraph, END, START
 
 from books_gen.graphs.state import BookGenerationState
 from books_gen.graphs.edges import (
     should_end,
     check_index_exists,
     check_chapter_content,
+    should_process_next_chapter,
     # should_summarize_chapter_content,
 )
 
@@ -17,7 +18,6 @@ from books_gen.graphs.nodes import (
     generate_index,
     generate_chapter,
     continue_chapter_generation,
-    summarize_chapter_content,
     connector_node,
     
 )
@@ -39,7 +39,8 @@ def create_book_generation_graph() -> StateGraph:
     #workflow.add_node("summarize_chapter_content", summarize_chapter_content)
 
     # Definir las transiciones
-    workflow.set_entry_point("initialize")
+    #workflow.set_entry_point("initialize")
+    workflow.add_edge(START, "initialize")
 
     # Verificar si existe un índice después de inicializar
     workflow.add_conditional_edges(
@@ -48,7 +49,8 @@ def create_book_generation_graph() -> StateGraph:
         {"exists": "connector_node", "not_exists": "generate_index"},
     )
 
-    # Después de generar el índice, verificar si hubo error
+    # Después de generar el índice, ir al nodo conector para empezar a procesar capítulos
+    # TODO: Cambiar a un nodo de creacion de capitulo
     workflow.add_edge("generate_index", END)
 
     # Antes de generar un capítulo, verificar si ya tiene contenido
@@ -58,14 +60,34 @@ def create_book_generation_graph() -> StateGraph:
         {"has_content": "continue_chapter", "no_content": "generate_chapter"},
     )
 
-    # Después de generar un capítulo
+    # Después de generar un capítulo, verificar si hay error
     workflow.add_conditional_edges(
-        "generate_chapter", should_end, {"error": END, "continue": END}
+        "generate_chapter", 
+        should_end, 
+        {
+            "error": END, 
+            "continue": "next_chapter_check"
+        }
     )
 
-    # Después de continuar un capítulo
+    # Después de continuar un capítulo, verificar si hay error
     workflow.add_conditional_edges(
-        "continue_chapter", should_end, {"error": END, "continue": END}
+        "continue_chapter", 
+        should_end, 
+        {
+            "error": END, 
+            "continue": "next_chapter_check"
+        }
+    )
+      # Nodo virtual para verificar si hay más capítulos por procesar
+    workflow.add_node("next_chapter_check", lambda state: state)
+    workflow.add_conditional_edges(
+        "next_chapter_check",
+        should_process_next_chapter,
+        {
+            "next_chapter": "connector_node",
+            "finish": END
+        }
     )
 
     # workflow.add_conditional_edges(

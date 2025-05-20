@@ -21,11 +21,20 @@ def check_index_exists(state: BookGenerationState) -> str:
         str: "exists" si el índice ya existe, "not_exists" si no existe.
     """
     # Verificar si el índice está vacío
-
+    
+    from pdb import set_trace
+    set_trace()
+    book = state.get("book")
+    
+    if not book:
+        return "not_exists"
+    else:
+        index = book.index
+    
     if (
-        state["index"]
-        and isinstance(state["index"], dict)
-        and state["index"].get("chapters")
+        index
+        and isinstance(index, dict)
+        and index.get("chapters")
     ):
         return "exists"
     return "not_exists"
@@ -39,11 +48,14 @@ def check_chapter_content(state: BookGenerationState) -> str:
         str: "has_content" si el capítulo ya tiene contenido, "no_content" si está vacío.
     """
     # Si no hay capítulo seleccionado, no podemos verificar contenido
-    if not state["current_chapter"]:
+    if not state.get("current_chapter"):
         return "no_content"
 
     # Verificar si ya hay contenido generado para este capítulo
-    generated_content = state.get("generated_content", {})
+    generated_content = state["book"].processed_chapters
+    if not generated_content:
+        return "no_content"
+    # Verificar si el capítulo actual ya tiene contenido generado
     if state["current_chapter"] in generated_content:
         return "has_content"
 
@@ -76,4 +88,41 @@ def should_summarize_conversation(state: BookGenerationState) -> str:
     return "no_summarize"
 
 
+def should_process_next_chapter(state: BookGenerationState) -> str:
+    """
+    Determina si hay más capítulos por procesar en el libro.
+
+    Returns:
+        str: "next_chapter" si hay más capítulos por procesar, "finish" si se han procesado todos.
+    """
+    
+    # Si hay un error, terminamos
+    if state.get("error"):
+        return "finish"
+    
+    book = state.get("book")
+    if not book:
+        return "finish"
+    # Verificar que hay un índice
+    if (not book.index) or (not book.index.get("chapters")):
+        return "finish"
+    
+    # Obtener la lista de capítulos
+    chapters = book.index.get("chapters")
+    
+    # Si no hay capítulos, terminar
+    if not chapters:
+        return "finish"
+    
+    # Determinar el capítulo actual y el siguiente
+    processed_chapters = book.processed_chapters
+    
+    if len(processed_chapters) == len(chapters):
+        # Si todos los capítulos han sido procesados, terminar
+        book.is_completed = True
+        return "finish"
+    else:
+        return "next_chapter"
+    
+    
 
