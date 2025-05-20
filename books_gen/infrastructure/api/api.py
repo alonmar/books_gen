@@ -12,11 +12,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
-from books_gen.models.book_models import BookInitRequest
+from books_gen.models.book_models import BookInitRequest, Book, DownloadBookRequest
 from books_gen.graphs.graph import create_book_generation_graph
 from books_gen.tools.book_tools import _get_book_path
 from books_gen.config import settings
 from books_gen.graphs.state import BookGenerationState
+from books_gen.api.utils import convert_markdown_to_download_file
 
 # Crear la aplicación FastAPI
 app = FastAPI(
@@ -45,18 +46,7 @@ background_jobs = {}
 def __format_messages(
     messages: Union[str, list[dict[str, Any]]]
 ) -> list[Union[HumanMessage, AIMessage]]:
-    """Convert various message formats to a list of LangChain message objects.
-
-    Args:
-        messages: Can be one of:
-            - A single string message
-            - A list of string messages
-            - A list of dictionaries with 'role' and 'content' keys
-
-    Returns:
-        list[Union[HumanMessage, AIMessage]]: A list of LangChain message objects
-    """
-
+    """Convert various message formats to a list of LangChain message objects."""
     if isinstance(messages, str):
         return [HumanMessage(content=messages)]
 
@@ -64,11 +54,7 @@ def __format_messages(
         if not messages:
             return []
 
-        if (
-            isinstance(messages[0], dict)
-            and "role" in messages[0]
-            and "content" in messages[0]
-        ):
+        if isinstance(messages[0], dict) and "role" in messages[0] and "content" in messages[0]:
             result = []
             for msg in messages:
                 if msg["role"] == "user":
@@ -148,40 +134,44 @@ async def create_book(request: BookInitRequest, background_tasks: BackgroundTask
 
     # ID único para el trabajo
     job_id = str(uuid.uuid4())
-
-    # Configurar el estado inicial
-    # initial_state = {
-    #    "book_id": "",
-    #    "title": request.title,
-    #    "synopsis": request.synopsis,
-    #    "index": {},
-    #    "current_chapter": "",
-    #    "generated_content": {},
-    #    "error": "",
-    # }
-    initial_state_book = BookGenerationState(
-        messages=__format_messages(""),
-        book_id="",
+    
+    
+    book = Book(
+        id= request.id,
         title=request.title,
         synopsis=request.synopsis,
+        book_style=request.book_style,
+        pages=request.pages,
+        processed_chapters=[],
         index={},
+        created_at=datetime.now().isoformat(),
+        updated_at=datetime.now().isoformat(),
+    )
+
+    # Configurar el estado inicial
+    initial_state_book = BookGenerationState(
+        messages=__format_messages(""),
+        book=book,
+        book_id=request.id,
+        title=request.title,
+        synopsis=request.synopsis,
+        book_style=request.book_style,
+        pages=request.pages,
         current_chapter="",
         generated_content={},
+        previous_chapter_content="",
         error="",
     )
+    
 
     # Ejecutar el grafo en segundo plano hasta el punto de generación del índice
     async def run_graph_task():
         try:
             # Inicializar y generar el índice
-            output_state = await book_app.ainvoke(
-                input={
-                    "book_id": initial_state_book["book_id"],
-                    "title": initial_state_book["title"],
-                    "synopsis": initial_state_book["synopsis"],
-                },
-            )
-            # last_message = output_state["messages"][-1]
+            output_state = await book_app.ainvoke({
+                **initial_state_book
+            })
+            
             print(f"Estado de salida: {output_state}")
 
             background_jobs[job_id] = {
@@ -261,15 +251,25 @@ async def generate_chapter(
 
     # ID único para el trabajo
     job_id = str(uuid.uuid4())
-
+    
+    # Obtener estilo y páginas totales
+    estilo = book_data.get("estilo", None)
+    paginas_totales = book_data.get("paginas_totales", None)
+    resumen_general = book_data.get("resumen_general", "")
+    
     # Configurar el estado inicial para la generación del capítulo
     initial_state_book = {
         "book_id": book_id,
         "title": book_data["title"],
         "synopsis": book_data["synopsis"],
+        "estilo": estilo,
+        "paginas_totales": paginas_totales,
+        "resumen_general": resumen_general,
         "index": book_data["index"],
         "current_chapter": chapter_id,
         "generated_content": {},
+        "processed_chapters": [],
+        "previous_chapter_content": "",
         "error": "",
     }
 
@@ -277,16 +277,16 @@ async def generate_chapter(
     async def run_chapter_generation():
         try:
             # Saltamos la inicialización y generación de índice, vamos directo a generar el capítulo
-            # Filtramos para quedarnos solo con el nodo de generación de capítulos
-            final_state = await book_app.ainvoke(
-                input={
-                    "book_id": initial_state_book["book_id"],
-                    "title": initial_state_book["title"],
-                    "synopsis": initial_state_book["synopsis"],
-                    "index": initial_state_book["index"],
-                    "current_chapter": initial_state_book["current_chapter"],
-                },
-            )
+            final_state = await book_app.ainvoke({
+                "book_id": initial_state_book["book_id"],
+                "title": initial_state_book["title"],
+                "synopsis": initial_state_book["synopsis"],
+                "estilo": initial_state_book["estilo"],
+                "paginas_totales": initial_state_book["paginas_totales"],
+                "resumen_general": initial_state_book["resumen_general"],
+                "index": initial_state_book["index"],
+                "current_chapter": initial_state_book["current_chapter"]
+            })
 
             # Obtener el estado final
             background_jobs[job_id] = {
@@ -325,7 +325,131 @@ async def generate_chapter(
     }
 
 
+@app.post("/books/download")
+async def download_book(request: DownloadBookRequest):
+    """
+    Descarga el libro completo en formato seleccionado.
+    """
+    # Verificar que el libro existe
+    from pdb    import set_trace
+    set_trace()
+    
+    book_path = _get_book_path(request.book_id)
+    if not os.path.exists(book_path):
+        raise HTTPException(status_code=404, detail=f"Libro no encontrado: {request.book_id}")
+
+    # Cargar el libro
+    with open(book_path, "r", encoding="utf-8") as f:
+        book_data = json.load(f)
+        
+    book = Book(
+        **book_data)
+    
+    
+    file = convert_markdown_to_download_file(book, request.format)
+    
+    from pdb    import set_trace
+    set_trace()
+    
+    if not file:
+        raise HTTPException(status_code=500, detail="Error al convertir el libro a formato descargable")
+    return FileResponse(
+        file,
+        media_type="application/octet-stream",
+        filename=f"{book.title}.{request.format.value}",
+    )
+    
+    
+    
+
+@app.post("/books/{book_id}/generate-all")
+async def generate_all_chapters(
+    book_id: str, background_tasks: BackgroundTasks
+):
+    """
+    Genera automáticamente todos los capítulos del libro en secuencia.
+    """
+    # Verificar que el libro existe
+    book_path = _get_book_path(book_id)
+    if not os.path.exists(book_path):
+        raise HTTPException(status_code=404, detail=f"Libro no encontrado: {book_id}")
+
+    # Cargar el libro
+    with open(book_path, "r", encoding="utf-8") as f:
+        book_data = json.load(f)
+
+    # Crear el grafo para la generación de capítulos
+    book_graph = create_book_generation_graph()
+    book_app = book_graph.compile()
+
+    # ID único para el trabajo
+    job_id = str(uuid.uuid4())
+
+    # Obtener estilo, páginas totales y resumen general
+    estilo = book_data.get("estilo", None)
+    paginas_totales = book_data.get("paginas_totales", None)
+    resumen_general = book_data.get("resumen_general", "")
+
+    # Configurar el estado inicial para la generación completa del libro
+    initial_state_book = {
+        "book_id": book_id,
+        "title": book_data["title"],
+        "synopsis": book_data["synopsis"],
+        "estilo": estilo,
+        "paginas_totales": paginas_totales,
+        "resumen_general": resumen_general,
+        "index": book_data["index"],
+        "current_chapter": "",  # Vacío para que el connector_node seleccione el primer capítulo
+        "generated_content": {},
+        "processed_chapters": [],
+        "previous_chapter_content": "",
+        "error": "",
+    }
+
+    # Ejecutar el grafo en segundo plano para generar todos los capítulos
+    async def run_all_chapters_generation():
+        try:
+            # Ejecutar el grafo completo para generar todos los capítulos
+            final_state = await book_app.ainvoke(initial_state_book)
+
+            # Actualizar el estado del trabajo
+            background_jobs[job_id] = {
+                "status": "completed" if not final_state.get("error") else "error",
+                "error": final_state.get("error", ""),
+                "book_id": book_id,
+                "completed_at": datetime.now().isoformat(),
+                "processed_chapters": final_state.get("processed_chapters", []),
+            }
+
+            print(f"Generación completa finalizada. Estado: {final_state.get('error', 'OK')}")
+
+        except Exception as e:
+            background_jobs[job_id] = {
+                "status": "error",
+                "error": str(e),
+                "completed_at": datetime.now().isoformat(),
+            }
+            print(f"Error en la generación completa: {str(e)}")
+
+    # Iniciar la tarea en segundo plano
+    background_tasks.add_task(run_all_chapters_generation)
+
+    # Registrar el trabajo
+    background_jobs[job_id] = {
+        "status": "running",
+        "started_at": datetime.now().isoformat(),
+        "book_id": book_id,
+        "message": "Generación automática de todos los capítulos iniciada",
+    }
+
+    return {
+        "job_id": job_id,
+        "book_id": book_id,
+        "message": "Proceso de generación automática de capítulos iniciado",
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("books_gen.api.routes:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("books_gen.api.api:app", host="0.0.0.0", port=8000, reload=True)

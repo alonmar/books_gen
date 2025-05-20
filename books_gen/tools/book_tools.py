@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime
 from langchain.tools import tool
 
-from ..models.book_models import Book, BookIndex, BookChapter
+from ..models.book_models import Book, BookIndex, BookChapter, BookStyle
 from books_gen.config import settings
 
 
@@ -17,7 +17,7 @@ def _get_book_path(book_id: str) -> str:
     return os.path.join(settings.BOOKS_DIR, f"{book_id}.json")
 
 
-def _get_book_index_without_content(book_id: str) -> Dict | None:
+def _get_book_index_without_content(book_id: str) -> Book:
     """Obtiene el índice del libro."""
     book_path = _get_book_path(book_id)
     if not os.path.exists(book_path):
@@ -30,8 +30,21 @@ def _get_book_index_without_content(book_id: str) -> Dict | None:
         # Eliminar el contenido del capítulo si existe
         if chapter.get("content"):
             del chapter["content"]
+    
+    
+    book = Book(
+        id=book_data["id"],
+        title=book_data["title"],
+        synopsis=book_data["synopsis"],
+        book_style=BookStyle(book_data["book_style"]),
+        processed_chapters=book_data["processed_chapters"],
+        pages=book_data["pages"],
+        index=book_data["index"],
+        created_at=book_data["created_at"],
+        updated_at=book_data["updated_at"],
+    )
 
-    return book_data["index"]
+    return book
 
 
 @tool
