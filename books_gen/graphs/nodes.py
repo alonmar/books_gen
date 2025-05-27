@@ -39,7 +39,8 @@ async def initialize_book(state: BookGenerationState):
 
             state["book_id"] = book_id
 
-            # Guardar el libro inicial            os.makedirs(settings.BOOKS_DIR, exist_ok=True)
+            # Guardar el libro inicial
+            os.makedirs(settings.BOOKS_DIR, exist_ok=True)
             with open(_get_book_path(book_id), "w", encoding="utf-8") as f:
                 f.write(book.model_dump_json(indent=2))
 
