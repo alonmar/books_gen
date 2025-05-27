@@ -103,7 +103,7 @@ CONTEXTO DEL LIBRO:
 Título: {{title}}
 Sinopsis: {{synopsis}}
 
-{{previous_chapters_summary}}
+Resumen del libro: {{summary_book}}
 
 ÍNDICE DEL LIBRO:
 {{index_format}}
@@ -121,7 +121,7 @@ INSTRUCCIONES:
 3. Sigue el estilo literario especificado: {{book_style}}.
 4. El contenido debe reflejar la descripción del capítulo en el índice.
 5. Asegúrate de que el capítulo avance la trama según lo previsto en el índice general.
-6. No incluyas "Capítulo X" o el título en el texto, solo el contenido narrativo.
+6. No incluyas "Capítulo X" o el nombre del capitulos al inicio del texto, solo el contenido narrativo.
 
 Responde con el texto completo del capítulo.
 """
@@ -161,3 +161,49 @@ CHAPTER_EXTEND_PROMPT = Prompt(
 
 
 # --- Summary ---
+
+__SUMMARY_PROMPT = """
+Crea un resumen del libro con el siguiente titulo y sinopsis:
+Título: {{title}}
+Sinopsis: {{synopsis}}
+Estilo literario: {{book_style}}
+
+---
+
+El resumen debe ser una breve descripción del libro, pero que también capture toda la información relevante.
+El resumen debe ser coherente con el estilo literario del libro y debe incluir los temas principales, personajes y eventos importantes.
+El resumen debe ser breve y conciso, pero lo suficientemente informativo como para dar una idea clara de la trama y el desarrollo del libro.
+
+---
+
+Este es el contenido del primer capítulo:
+{{chapter_content}}
+
+"""
+
+SUMMARY_PROMPT = Prompt(
+    name="summary_prompt",
+    prompt=__SUMMARY_PROMPT,
+)
+
+__EXTEND_SUMMARY_PROMPT = """Este es un resumen del libro con el siguiente título y sinopsis:
+Título: {{title}}
+Sinopsis: {{synopsis}}
+Resumen: {{summary_book}}
+
+---
+
+Extiende el resumen del libro con el siguiente contenido del capítulo:
+{{chapter_content}}
+
+---
+El resumen debe ser una breve descripción del libro, pero que también capture toda la información relevante.
+El resumen debe ser coherente con el estilo literario del libro y debe incluir los temas principales, personajes y eventos importantes.
+El resumen debe ser breve y conciso, pero lo suficientemente informativo como para dar una idea clara de la trama y el desarrollo del libro.
+
+"""
+
+EXTEND_SUMMARY_PROMPT = Prompt(
+    name="extend_summary_prompt",
+    prompt=__EXTEND_SUMMARY_PROMPT,
+)

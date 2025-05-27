@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from typing import List, Dict, Optional
 from enum import Enum
 
+
 class BookStyle(str, Enum):
     """Estilos literarios disponibles para la generación de libros."""
 
@@ -25,7 +26,9 @@ class BookStyle(str, Enum):
     DRAMA = "drama"
     BIOGRAFICO = "biografico"
     ENSAYO = "ensayo"
-    
+    MANUAL = "manual"
+
+
 class FormatDownload(str, Enum):
     """Formatos de descarga disponibles para los libros."""
 
@@ -36,7 +39,8 @@ class FormatDownload(str, Enum):
     TXT = "txt"
     HTML = "html"
     MARKDOWN = "markdown"
-    
+
+
 class BookInitRequest(BaseModel):
     """Modelo para la solicitud inicial del libro."""
 
@@ -45,7 +49,7 @@ class BookInitRequest(BaseModel):
     synopsis: str = Field(..., description="Sinopsis del libro")
     book_style: BookStyle = Field(..., description="Estilo del libro")
     pages: int = Field(..., description="Número de páginas del libro")
-    
+
     model_config = {
         "json_schema_extra": {
             "example": {
@@ -56,7 +60,10 @@ class BookInitRequest(BaseModel):
             }
         }
     }
-    
+
+
+class BookContentRequest(BaseModel):
+    id: str = Field(..., description="ID único del libro")
 
 
 class BookChapter(BaseModel):
@@ -106,5 +113,6 @@ class DownloadBookRequest(BaseModel):
     """Modelo para solicitar la descarga de un libro."""
 
     book_id: str = Field(..., description="ID del libro")
-    format: FormatDownload = Field(..., description="Formato de descarga (ej. PDF, EPUB)")
-
+    format: FormatDownload = Field(
+        ..., description="Formato de descarga (ej. PDF, EPUB)"
+    )

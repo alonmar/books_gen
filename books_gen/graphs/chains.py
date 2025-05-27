@@ -10,6 +10,8 @@ from books_gen.domain.prompts import (
     CHAPTER_PROMPT,
     EDITOR_CHAPTER_EXTEND_CARD,
     CHAPTER_EXTEND_PROMPT,
+    SUMMARY_PROMPT,
+    EXTEND_SUMMARY_PROMPT,
 )
 
 
@@ -51,6 +53,21 @@ def get_chapter_chain():
     return prompt | model
 
 
+def get_summary_chapter_chain_chain(summary_book: str = ""):
+    model = get_chat_model()
+
+    summary_message = EXTEND_SUMMARY_PROMPT if summary_book else SUMMARY_PROMPT
+
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("human", summary_message.prompt),
+        ],
+        template_format="jinja2",
+    )
+
+    return prompt | model
+
+
 def get_chapter_extend_chain():
     model = get_chat_model()
 
@@ -63,4 +80,3 @@ def get_chapter_extend_chain():
     )
 
     return prompt | model
-

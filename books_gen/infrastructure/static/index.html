@@ -162,6 +162,24 @@
                                     placeholder="Describe brevemente la trama principal de tu libro..."
                                     required></textarea>
                             </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="bookStyle" class="form-label">Estilo del Libro</label>
+                                    <select class="form-select" id="bookStyle" required>
+                                        <option value="">Selecciona un estilo...</option>
+                                        <option value="narrativo">Narrativo</option>
+                                        <option value="descriptivo">Descriptivo</option>
+                                        <option value="dialogado">Dialogado</option>
+                                        <option value="expositivo">Expositivo</option>
+                                        <option value="argumentativo">Argumentativo</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="bookPages" class="form-label">Número de Páginas</label>
+                                    <input type="number" class="form-control" id="bookPages" min="3" max="10" value="10"
+                                        required>
+                                </div>
+                            </div>
                             <button type="submit" class="btn btn-success btn-lg w-100">Generar Índice del Libro</button>
                         </form>
                     </div>
@@ -234,6 +252,26 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para descargar el libro -->
+    <div class="modal fade" id="downloadOptionsModal" tabindex="-1" aria-labelledby="downloadOptionsModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="downloadOptionsModalLabel">Descargar Libro</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Selecciona el formato para descargar:</p>
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-primary" onclick="downloadBook('pdf')">PDF</button>
+                        <button class="btn btn-outline-secondary" onclick="downloadBook('markdown')">Markdown</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -316,21 +354,30 @@
 
             const title = document.getElementById('bookTitle').value;
             const synopsis = document.getElementById('bookSynopsis').value;
+            const bookStyle = document.getElementById('bookStyle').value;
+            const pages = parseInt(document.getElementById('bookPages').value);
 
             document.getElementById('newBookForm').style.display = 'none';
             document.getElementById('generationProgress').style.display = 'block';
 
-            fetch(`${API_URL}/books`, {
+            fetch(`${API_URL}/books/index`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
                     title: title,
-                    synopsis: synopsis
+                    synopsis: synopsis,
+                    book_style: bookStyle,
+                    pages: pages
                 })
             })
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Error HTTP: ${response.status}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     document.getElementById('generationStatus').textContent = `Generando índice para "${title}"...`;
                     checkJobStatus(data.job_id);
@@ -386,7 +433,56 @@
                 .then(response => response.json())
                 .then(book => {
                     document.getElementById('bookIndexModalLabel').textContent = book.title;
-                    document.getElementById('modalBookSynopsis').textContent = book.synopsis;
+                    document.getElementById('modalBookSynopsis').textContent = book.synopsis;                    // Añadir botones para acciones del libro
+                    const modalHeader = document.querySelector('#bookIndexModal .modal-header');
+
+                    // Eliminar botones anteriores si existen
+                    const oldGenButton = document.getElementById('generateAllChaptersBtn');
+                    if (oldGenButton) {
+                        oldGenButton.remove();
+                    }
+                    const oldDownloadButton = document.getElementById('downloadBookBtn');
+                    if (oldDownloadButton) {
+                        oldDownloadButton.remove();
+                    }                    // Crear grupo de botones
+                    const buttonGroup = document.createElement('div');
+                    buttonGroup.className = 'btn-group ms-auto me-2';
+                    buttonGroup.role = 'group';
+
+                    // Crear botón para crear libro completo
+                    const createFullBookButton = document.createElement('button');
+                    createFullBookButton.id = 'createFullBookBtn';
+                    createFullBookButton.className = 'btn btn-primary';
+                    createFullBookButton.textContent = 'Crear Libro Completo';
+                    createFullBookButton.onclick = function() {
+                        createFullBook(currentBookId);
+                    };
+
+                    // Crear botón para generar todos los capítulos
+                    const generateAllButton = document.createElement('button');
+                    generateAllButton.id = 'generateAllChaptersBtn';
+                    generateAllButton.className = 'btn btn-info';
+                    generateAllButton.textContent = 'Generar todos los capítulos';
+                    generateAllButton.onclick = function () {
+                        generateAllChapters(currentBookId);
+                    };
+                    
+                    // Crear botón para descargar el libro
+                    const downloadButton = document.createElement('button');
+                    downloadButton.id = 'downloadBookBtn';
+                    downloadButton.className = 'btn btn-success';
+                    downloadButton.textContent = 'Descargar Libro';
+                    downloadButton.onclick = function () {
+                        openDownloadOptions(currentBookId);
+                    };
+                    
+                    // Añadir botones al grupo
+                    buttonGroup.appendChild(createFullBookButton);
+                    buttonGroup.appendChild(generateAllButton);
+                    buttonGroup.appendChild(downloadButton);
+
+                    // Insertar grupo antes del botón de cerrar
+                    modalHeader.insertBefore(buttonGroup, modalHeader.querySelector('.btn-close'));
 
                     const chapterList = document.getElementById('chapterList');
                     chapterList.innerHTML = '';
@@ -509,6 +605,232 @@
                         console.error('Error al verificar el estado de generación del capítulo:', error);
                     });
             }, 2000);
+        }        // Función para abrir el modal de opciones de descarga
+        function openDownloadOptions(bookId) {
+            // Verificar si el libro tiene contenido generado antes de permitir la descarga
+            fetch(`${API_URL}/books/${bookId}`)
+                .then(response => response.json())
+                .then(book => {
+                    let hasContent = false;
+                    
+                    // Verificar si al menos un capítulo tiene contenido
+                    if (book.index && book.index.chapters) {
+                        for (const chapter of book.index.chapters) {
+                            if (chapter.content) {
+                                hasContent = true;
+                                break;
+                            }
+                            
+                            // Verificar subcapítulos
+                            if (chapter.subchapters) {
+                                for (const subchapter of chapter.subchapters) {
+                                    if (subchapter.content) {
+                                        hasContent = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            
+                            if (hasContent) break;
+                        }
+                    }
+                    
+                    if (hasContent) {
+                        const downloadOptionsModal = new bootstrap.Modal(document.getElementById('downloadOptionsModal'));
+                        downloadOptionsModal.show();
+                    } else {
+                        alert('El libro no tiene contenido generado aún. Por favor, genera al menos un capítulo o utiliza la opción "Crear Libro Completo" antes de descargar.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error al verificar el contenido del libro:', error);
+                    alert('Error al verificar el contenido del libro. Intenta de nuevo.');
+                });
+        }
+
+        // Función para descargar el libro en el formato seleccionado
+        function downloadBook(format) {
+            // Cerrar el modal de opciones
+            document.getElementById('downloadOptionsModal').querySelector('.btn-close').click();
+
+            // Mostrar mensaje de carga
+            const downloadButton = document.getElementById('downloadBookBtn');
+            const originalText = downloadButton.textContent;
+            downloadButton.textContent = 'Procesando...';
+            downloadButton.disabled = true;
+
+            fetch(`${API_URL}/books/download`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    book_id: currentBookId,
+                    format: format
+                })
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Error HTTP: ${response.status}`);
+                    }
+
+                    // Obtener el nombre del archivo desde el header Content-Disposition si está disponible
+                    let filename = `libro.${format}`;
+                    const contentDisposition = response.headers.get('content-disposition');
+                    if (contentDisposition) {
+                        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                        if (filenameMatch && filenameMatch[1]) {
+                            filename = filenameMatch[1].replace(/['"]/g, '');
+                        }
+                    }
+
+                    return response.blob().then(blob => {
+                        // Crear un enlace temporal para descargar el archivo
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.style.display = 'none';
+                        a.href = url;
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+
+                        // Limpiar
+                        window.URL.revokeObjectURL(url);
+                        document.body.removeChild(a);
+
+                        // Restaurar el botón
+                        downloadButton.textContent = originalText;
+                        downloadButton.disabled = false;
+                    });
+                })
+                .catch(error => {
+                    console.error('Error al descargar el libro:', error);
+                    alert('Error al descargar el libro. Por favor, intenta de nuevo.');
+                    downloadButton.textContent = originalText;
+                    downloadButton.disabled = false;
+                });
+        }
+
+        // Función para generar todos los capítulos de un libro automáticamente
+        function generateAllChapters(bookId) {
+            if (!confirm('¿Estás seguro de generar automáticamente todos los capítulos del libro? Este proceso puede tardar varios minutos.')) {
+                return;
+            }
+
+            // Mostrar un mensaje de progreso
+            const generateAllButton = document.getElementById('generateAllChaptersBtn');
+            const originalText = generateAllButton.textContent;
+            generateAllButton.textContent = 'Generando...';
+            generateAllButton.disabled = true;
+
+            fetch(`${API_URL}/books/${bookId}/generate-all`, {
+                method: 'POST'
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Error HTTP: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Iniciar monitoreo del trabajo
+                    let generationInterval = setInterval(() => {
+                        fetch(`${API_URL}/jobs/${data.job_id}`)
+                            .then(response => response.json())
+                            .then(job => {
+                                if (job.status === 'completed') {
+                                    clearInterval(generationInterval);
+                                    generateAllButton.textContent = '¡Completado!';
+                                    setTimeout(() => {
+                                        generateAllButton.textContent = originalText;
+                                        generateAllButton.disabled = false;
+                                        // Recargar el índice para mostrar los capítulos actualizados
+                                        viewBookIndex(bookId);
+                                    }, 2000);
+                                } else if (job.status === 'error') {
+                                    clearInterval(generationInterval);
+                                    generateAllButton.textContent = 'Error';
+                                    setTimeout(() => {
+                                        generateAllButton.textContent = originalText;
+                                        generateAllButton.disabled = false;
+                                        alert(`Error al generar los capítulos: ${job.error}`);
+                                    }, 2000);
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error al verificar el estado de generación:', error);
+                            });
+                    }, 2000);
+                })
+                .catch(error => {
+                    console.error('Error al iniciar la generación de capítulos:', error);
+                    generateAllButton.textContent = originalText;
+                    generateAllButton.disabled = false;
+                });
+        }
+
+        // Función para crear un libro completo
+        function createFullBook(bookId) {
+            if (!confirm('¿Estás seguro de crear el libro completo? Este proceso puede tardar varios minutos.')) {
+                return;
+            }
+
+            // Mostrar un mensaje de progreso
+            const createFullBookButton = document.getElementById('createFullBookBtn');
+            const originalText = createFullBookButton.textContent;
+            createFullBookButton.textContent = 'Procesando...';
+            createFullBookButton.disabled = true;
+
+            fetch(`${API_URL}/books/create`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    id: bookId
+                })
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Error HTTP: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    alert(`Creación del libro completo iniciada. ID del trabajo: ${data.job_id}`);
+                    
+                    // Establecer un intervalo para verificar el estado del trabajo
+                    let checkIntervalFullBook = setInterval(() => {
+                        fetch(`${API_URL}/jobs/${data.job_id}`)
+                            .then(response => response.json())
+                            .then(job => {
+                                if (job.status === 'completed') {
+                                    clearInterval(checkIntervalFullBook);
+                                    createFullBookButton.textContent = '¡Libro creado!';
+                                    setTimeout(() => {
+                                        createFullBookButton.textContent = originalText;
+                                        createFullBookButton.disabled = false;
+                                        // Recargar el modal con el libro actualizado
+                                        viewBookIndex(bookId);
+                                    }, 2000);
+                                } else if (job.status === 'error') {
+                                    clearInterval(checkIntervalFullBook);
+                                    alert(`Error en la creación del libro: ${job.error}`);
+                                    createFullBookButton.textContent = originalText;
+                                    createFullBookButton.disabled = false;
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error al verificar el estado del trabajo:', error);
+                            });
+                    }, 5000); // Verificar cada 5 segundos
+                })
+                .catch(error => {
+                    console.error('Error al crear el libro completo:', error);
+                    alert('Error al iniciar la creación del libro completo.');
+                    createFullBookButton.textContent = originalText;
+                    createFullBookButton.disabled = false;
+                });
         }
     </script>
 </body>

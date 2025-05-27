@@ -21,21 +21,15 @@ def check_index_exists(state: BookGenerationState) -> str:
         str: "exists" si el índice ya existe, "not_exists" si no existe.
     """
     # Verificar si el índice está vacío
-    
-    from pdb import set_trace
-    set_trace()
+
     book = state.get("book")
-    
+
     if not book:
         return "not_exists"
     else:
         index = book.index
-    
-    if (
-        index
-        and isinstance(index, dict)
-        and index.get("chapters")
-    ):
+
+    if index and isinstance(index, dict) and index.get("chapters"):
         return "exists"
     return "not_exists"
 
@@ -95,34 +89,31 @@ def should_process_next_chapter(state: BookGenerationState) -> str:
     Returns:
         str: "next_chapter" si hay más capítulos por procesar, "finish" si se han procesado todos.
     """
-    
+
     # Si hay un error, terminamos
     if state.get("error"):
         return "finish"
-    
+
     book = state.get("book")
     if not book:
         return "finish"
     # Verificar que hay un índice
     if (not book.index) or (not book.index.get("chapters")):
         return "finish"
-    
+
     # Obtener la lista de capítulos
     chapters = book.index.get("chapters")
-    
+
     # Si no hay capítulos, terminar
     if not chapters:
         return "finish"
-    
+
     # Determinar el capítulo actual y el siguiente
     processed_chapters = book.processed_chapters
-    
+
     if len(processed_chapters) == len(chapters):
         # Si todos los capítulos han sido procesados, terminar
         book.is_completed = True
         return "finish"
     else:
         return "next_chapter"
-    
-    
-

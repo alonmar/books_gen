@@ -10,7 +10,6 @@ from books_gen.graphs.edges import (
     check_index_exists,
     check_chapter_content,
     should_process_next_chapter,
-    # should_summarize_chapter_content,
 )
 
 from books_gen.graphs.nodes import (
@@ -19,6 +18,7 @@ from books_gen.graphs.nodes import (
     generate_chapter,
     continue_chapter_generation,
     connector_node,
+    summarize_chapter_content,
     
 )
 
@@ -36,7 +36,7 @@ def create_book_generation_graph() -> StateGraph:
     workflow.add_node("connector_node", connector_node)
     workflow.add_node("generate_chapter", generate_chapter)
     workflow.add_node("continue_chapter", continue_chapter_generation)
-    #workflow.add_node("summarize_chapter_content", summarize_chapter_content)
+    workflow.add_node("summarize_chapter_content", summarize_chapter_content)
 
     # Definir las transiciones
     #workflow.set_entry_point("initialize")
@@ -59,10 +59,12 @@ def create_book_generation_graph() -> StateGraph:
         check_chapter_content,
         {"has_content": "continue_chapter", "no_content": "generate_chapter"},
     )
+    # Después de generar un capítulo, ir a resumir el contenido
+    workflow.add_edge("generate_chapter", "summarize_chapter_content")
 
     # Después de generar un capítulo, verificar si hay error
     workflow.add_conditional_edges(
-        "generate_chapter", 
+        "summarize_chapter_content", 
         should_end, 
         {
             "error": END, 
@@ -79,8 +81,11 @@ def create_book_generation_graph() -> StateGraph:
             "continue": "next_chapter_check"
         }
     )
+    
+    
       # Nodo virtual para verificar si hay más capítulos por procesar
     workflow.add_node("next_chapter_check", lambda state: state)
+    
     workflow.add_conditional_edges(
         "next_chapter_check",
         should_process_next_chapter,
@@ -89,12 +94,13 @@ def create_book_generation_graph() -> StateGraph:
             "finish": END
         }
     )
+    
 
-    # workflow.add_conditional_edges(
-    #    "connector_node",
-    #    should_summarize_chapter_content,
-    #    {"summarize": "summarize_chapter_content", "no_summarize": END},
-    # )
+    #workflow.add_conditional_edges(
+    #   "connector_node",
+    #   should_summarize_chapter_content,
+    #   {"summarize": "summarize_chapter_content", "no_summarize": END},
+    #)
 
     return workflow
 

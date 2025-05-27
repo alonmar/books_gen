@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     # --- GROQ Configuration ---
     GROQ_API_KEY: str
-    GROQ_LLM_MODEL: str = "llama-3.1-8b-instant"
+    GROQ_LLM_MODEL: str = "llama-3.3-70b-versatile"
     GROQ_LLM_MODEL_CONTEXT_SUMMARY: str = "llama-3.1-8b-instant"
 
     # --- Agents Configuration ---

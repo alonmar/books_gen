@@ -316,3 +316,4 @@ pyrightconfig.json
 # End of https://www.toptal.com/developers/gitignore/api/macos,python,visualstudiocode,pycharm+all
 
 /books_gen/.langgraph_api
+/generated_books

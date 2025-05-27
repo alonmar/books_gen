@@ -15,58 +15,55 @@ from books_gen.tools.book_tools import _get_book_path, _get_book_index_without_c
 #    generate_chapter_content_with_llm,
 #    generate_summarize_resume_with_llm,
 # )
-from books_gen.graphs.chains import get_book_index_chain, get_chapter_chain, get_chapter_extend_chain
+from books_gen.graphs.chains import (
+    get_book_index_chain,
+    get_chapter_chain,
+    get_chapter_extend_chain,
+    get_summary_chapter_chain_chain,
+)
 
 
 async def initialize_book(state: BookGenerationState):
     """
     Inicializa un nuevo libro con título y sinopsis.
     """
+
     try:
         # Generar ID único para el libro
-        
-        if (state.get('book_id') == "") or (state.get('book_id') is None):
-            
-            book = state['book']
-            
+
+        if (state.get("book_id") == "") or (state.get("book_id") is None):
+            book = state["book"]
+
             book_id = str(uuid.uuid4())
             book.id = book_id
-            
-            state['book_id'] = book_id
 
-            
-            from pdb import set_trace
-            set_trace()
+            state["book_id"] = book_id
 
             # Guardar el libro inicial            os.makedirs(settings.BOOKS_DIR, exist_ok=True)
             with open(_get_book_path(book_id), "w", encoding="utf-8") as f:
                 f.write(book.model_dump_json(indent=2))
-                
-                
-            
-            state['book'] = book
-            state['book_id'] = book_id
-            state['title'] = book.title
-            state['synopsis'] = book.synopsis
-            state['book_style'] = book.book_style
-            state['pages'] = book.pages
-            
-                
+
+            state["book"] = book
+            state["book_id"] = book_id
+            state["title"] = book.title
+            state["synopsis"] = book.synopsis
+            state["book_style"] = book.book_style
+            state["pages"] = book.pages
+
             return state
         else:
             # Si el libro ya tiene ID, simplemente lo retornamos
-            book_id = state.get('book_id', "")
+
+            book_id = state.get("book_id", None)
 
             book = _get_book_index_without_content(book_id)
-            
-            
-            state['book'] = book
-            state['book_id'] = book_id
-            state['title'] = book.title
-            state['synopsis'] = book.synopsis
-            state['book_style'] = book.book_style
-            state['pages'] = book.pages
-            
+
+            state["book"] = book
+            state["book_id"] = book_id
+            state["title"] = book.title
+            state["synopsis"] = book.synopsis
+            state["book_style"] = book.book_style
+            state["pages"] = book.pages
 
             return state
 
@@ -79,14 +76,13 @@ async def generate_index(state: BookGenerationState) -> BookGenerationState:
     Genera el índice del libro utilizando el LLM.
     """
     try:
-        
         index_chain = get_book_index_chain()
         # Generar índice con LLM
         response = await index_chain.ainvoke(
             {
                 "title": state["title"],
                 "synopsis": state["synopsis"],
-                'book_style': state["book_style"],
+                "book_style": state["book_style"],
                 "pages": state["pages"],
             }
         )
@@ -138,16 +134,15 @@ async def generate_chapter(state: BookGenerationState) -> BookGenerationState:
     try:
         # Verificar que se haya seleccionado un capítulo
         book = state.get("book")
-        
+        summary_book = state.get("summary_book", "")
+
         if not book:
             return {
                 **state,
                 "error": "No se ha inicializado el libro correctamente",
             }
-            
+
         current_chapter = state.get("current_chapter")
-        
-        
 
         # Cargar el libro
         book_path = _get_book_path(state["book_id"])
@@ -161,12 +156,14 @@ async def generate_chapter(state: BookGenerationState) -> BookGenerationState:
         is_last_chapter = False
 
         # Extraemos el título y la descripción del capítulo
-        
+
         index = book.index
         chapters = index["chapters"]
-        index_format = [f"Capitulo{i+1}, Título: {chapter['title']}/n"  for i, chapter in enumerate(chapters)]
-        
-        
+        index_format = [
+            f"Capitulo{i+1}, Título: {chapter['title']}/n"
+            for i, chapter in enumerate(chapters)
+        ]
+
         # Determinar si este es el último capítulo para darle un cierre adecuado
         for i, chapter in enumerate(chapters):
             if chapter["id"] == current_chapter:
@@ -174,11 +171,9 @@ async def generate_chapter(state: BookGenerationState) -> BookGenerationState:
                 chapter_title = chapter["title"]
                 chapter_description = chapter["description"]
                 current_chapter_num = i + 1
-                is_last_chapter = (i == len(chapters) - 1)
+                is_last_chapter = i == len(chapters) - 1
                 break
-        
-        
-        
+
         if not chapter_found:
             return {
                 **state,
@@ -196,23 +191,24 @@ async def generate_chapter(state: BookGenerationState) -> BookGenerationState:
             }
 
         # Obtener el contenido del capítulo anterior para contexto
-        
+
         previous_chapters_summary = ""
-        
-        
-        completed_chapters = state.get("completed_chapters", []) 
-        
+
+        completed_chapters = state.get("completed_chapters", [])
+
         if len(completed_chapters) > 0:
             # Si hay capítulos completados, extraer el contenido del último
             previous_chapters_summary = "RESUMEN DE CAPÍTULOS ANTERIORES:\n"
             for chapter in completed_chapters:
-                previous_chapters_summary += f"Capítulo {chapter['id']}: {chapter['title']}\n"
+                previous_chapters_summary += (
+                    f"Capítulo {chapter['id']}: {chapter['title']}\n"
+                )
                 previous_chapters_summary += f"{chapter['description']}\n\n"
-                
-      
+
         # Añadir instrucciones especiales si es el último capítulo
         chapter_context = ""
         if is_last_chapter:
+            state["is_last_chapter"] = True
             chapter_context += "\n\nEste es el último capítulo del libro, asegúrate de crear un final satisfactorio que cierre todas las tramas."
 
         # Generar contenido con LLM
@@ -225,11 +221,11 @@ async def generate_chapter(state: BookGenerationState) -> BookGenerationState:
                 "book_style": book.book_style,
                 "chapter_title": chapter_title,
                 "chapter_description": chapter_description,
-                "previous_chapters_summary": previous_chapters_summary,
+                "summary_book": summary_book,
                 "index_format": index_format,
                 "chapter_context": chapter_context,
-                'current_chapter_num': current_chapter_num,
-                'TARGET_CHAPTER_WORDS': 250,
+                "current_chapter_num": current_chapter_num,
+                "TARGET_CHAPTER_WORDS": 300,
             }
         )
 
@@ -237,8 +233,6 @@ async def generate_chapter(state: BookGenerationState) -> BookGenerationState:
             response_text = response.content
         else:
             response_text = response
-        
-        
 
         # Actualizar el capítulo en el libro
         for chapter in index["chapters"]:
@@ -249,21 +243,68 @@ async def generate_chapter(state: BookGenerationState) -> BookGenerationState:
         book.index = index
         book.updated_at = datetime.now().isoformat()
         book.processed_chapters.append(current_chapter)
-        
-        from pdb import set_trace
-        set_trace()
+
         # Guardar el libro actualizado
         with open(book_path, "w", encoding="utf-8") as f:
             f.write(book.model_dump_json(indent=2))
-                
-        
+
         return {
             **state,
             "error": "",
         }
-        
+
     except Exception as e:
         return {**state, "error": f"Error al generar el capítulo: {str(e)}"}
+
+
+async def summarize_chapter_content(state: BookGenerationState) -> BookGenerationState:
+    """
+    Resume el contenido de un capítulo utilizando el LLM.
+    """
+    try:
+        book = state.get("book")
+        current_chapter = state.get("current_chapter")
+        summary_book = state.get("summary_book", "")
+
+        if not book:
+            return {
+                **state,
+                "error": "No se ha inicializado el libro correctamente",
+            }
+
+        # Extraemos el título y la descripción del capítulo
+        index = book.index
+        chapters = index["chapters"]
+
+        chapter_content = ""
+
+        for i, chapter in enumerate(chapters):
+            if chapter["id"] == current_chapter:
+                chapter_content = chapter.get("content", "")
+
+        summay_chapter_chain = get_summary_chapter_chain_chain(summary_book)
+
+        response = await summay_chapter_chain.ainvoke(
+            {
+                "title": book.title,
+                "synopsis": book.synopsis,
+                "book_style": book.book_style,
+                "chapter_content": chapter_content,
+                "summary_book": summary_book,
+            }
+        )
+
+        if hasattr(response, "content"):
+            response_text = response.content
+        else:
+            response_text = response
+
+        state["summary_book"] = response_text
+
+        return state
+
+    except Exception as e:
+        return {**state, "error": f"Error al continuar el capítulo: {str(e)}"}
 
 
 async def continue_chapter_generation(
@@ -296,7 +337,7 @@ async def continue_chapter_generation(
             if chapter["id"] == state["current_chapter"]:
                 chapter_title = chapter["title"]
                 chapter_description = chapter.get("description", "")
-                is_last_chapter = (i == len(chapters) - 1)
+                is_last_chapter = i == len(chapters) - 1
                 if "content" in chapter and chapter["content"]:
                     current_content = chapter["content"]
                 break
@@ -316,11 +357,15 @@ async def continue_chapter_generation(
         # Obtener el contenido del capítulo anterior para contexto
         previous_chapter_content = state.get("previous_chapter_content", "")
         chapter_context = ""
-        
+
         # Preparar el contexto usando el capítulo anterior
         if previous_chapter_content and previous_chapter_content != current_content:
-            chapter_context = "Contenido del capítulo anterior (para mantener continuidad):\n" + previous_chapter_content[:1500] + "..."
-        
+            chapter_context = (
+                "Contenido del capítulo anterior (para mantener continuidad):\n"
+                + previous_chapter_content[:1500]
+                + "..."
+            )
+
         # Añadir instrucciones especiales si es el último capítulo
         if is_last_chapter:
             chapter_context += "\n\nEste es el último capítulo del libro, asegúrate de crear un final satisfactorio que cierre todas las tramas."
@@ -363,7 +408,7 @@ async def continue_chapter_generation(
 
         return {
             **state,
-            'index': book_data["index"],
+            "index": book_data["index"],
             "error": "",
         }
     except Exception as e:
@@ -377,7 +422,6 @@ async def connector_node(state: BookGenerationState):
     Si ya hay un capítulo actual, selecciona el siguiente.
     """
     try:
-        
         # Inicializar la lista de capítulos procesados si no existe
         book = state.get("book")
         if not book:
@@ -385,20 +429,19 @@ async def connector_node(state: BookGenerationState):
                 **state,
                 "error": "No se ha inicializado el libro correctamente",
             }
-            
+
         processed_chapters = book.processed_chapters
-        
-        
+
         # Si no hay un índice, no podemos hacer nada
         if not book.index.get("chapters"):
             return {
                 **state,
                 "error": "No hay índice o capítulos para procesar",
             }
-        
+
         chapters = book.index["chapters"]
         current_chapter = state.get("current_chapter")
-        
+
         if not current_chapter and len(processed_chapters) == 0:
             # Si no hay capítulo actual, seleccionamos el primero
             current_chapter = chapters[0]["id"]
@@ -406,21 +449,18 @@ async def connector_node(state: BookGenerationState):
                 **state,
                 "current_chapter": current_chapter,
             }
-        
-        
+
         # Seleccionar el siguiente capítulo no procesado
         next_chapter = None
         for chapter in chapters:
             if chapter["id"] not in processed_chapters:
                 next_chapter = chapter["id"]
                 break
-        
+
         # Si no hay siguiente capítulo, mantener el actual (por si era el último)
         if next_chapter is None and len(chapters) > 0:
             next_chapter = chapters[-1]["id"]
-        
-        from pdb import set_trace
-        set_trace()
+
         return {
             **state,
             "current_chapter": next_chapter,

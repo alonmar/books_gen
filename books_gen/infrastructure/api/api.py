@@ -7,17 +7,20 @@ import uuid
 from datetime import datetime
 from typing import Dict, List, Optional, Union, Any
 from langchain.schema import HumanMessage, AIMessage
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.store.memory import InMemoryStore
+
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
-from books_gen.models.book_models import BookInitRequest, Book, DownloadBookRequest
+from books_gen.models.book_models import BookInitRequest, Book, DownloadBookRequest, BookContentRequest
 from books_gen.graphs.graph import create_book_generation_graph
 from books_gen.tools.book_tools import _get_book_path
 from books_gen.config import settings
 from books_gen.graphs.state import BookGenerationState
-from books_gen.api.utils import convert_markdown_to_download_file
+from books_gen.infrastructure.api.utils import convert_markdown_to_download_file
 
 # Crear la aplicación FastAPI
 app = FastAPI(
@@ -37,7 +40,7 @@ app.add_middleware(
 
 # Montar archivos estáticos
 static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
-app.mount("/static", StaticFiles(directory=static_dir), name="static")
+app.mount("/infrastructure/static", StaticFiles(directory=static_dir), name="static")
 
 # Almacén para los trabajos en segundo plano
 background_jobs = {}
@@ -122,22 +125,31 @@ def get_book(book_id: str):
     return book_data
 
 
-@app.post("/books")
-async def create_book(request: BookInitRequest, background_tasks: BackgroundTasks):
+@app.post("/books/index")
+async def create_book_index(request: BookInitRequest, background_tasks: BackgroundTasks):
     """
     Crea un nuevo libro e inicia el proceso de generación de índice.
     """
     # Crear el grafo
     book_graph = create_book_generation_graph()
+    checkpointer = InMemorySaver()
+    in_memory_store = InMemoryStore()
     # Compilar el grafo
-    book_app = book_graph.compile()
+    book_app = book_graph.compile(checkpointer=checkpointer, store=in_memory_store)
 
     # ID único para el trabajo
     job_id = str(uuid.uuid4())
     
-    
-    book = Book(
-        id= request.id,
+    if request.id:
+        # Verificar si el libro ya existe
+        book_path = _get_book_path(request.id)
+        if os.path.exists(book_path):
+            raise HTTPException(
+                status_code=400, detail=f"El libro con ID {request.id} ya existe."
+            )
+    else:
+        book = Book(
+        id=None,
         title=request.title,
         synopsis=request.synopsis,
         book_style=request.book_style,
@@ -147,6 +159,7 @@ async def create_book(request: BookInitRequest, background_tasks: BackgroundTask
         created_at=datetime.now().isoformat(),
         updated_at=datetime.now().isoformat(),
     )
+    
 
     # Configurar el estado inicial
     initial_state_book = BookGenerationState(
@@ -162,15 +175,20 @@ async def create_book(request: BookInitRequest, background_tasks: BackgroundTask
         previous_chapter_content="",
         error="",
     )
+    thread_id = 1
     
+    config = {
+        "configurable": {"thread_id": thread_id},
+            }
 
     # Ejecutar el grafo en segundo plano hasta el punto de generación del índice
     async def run_graph_task():
         try:
             # Inicializar y generar el índice
-            output_state = await book_app.ainvoke({
-                **initial_state_book
-            })
+            output_state = await book_app.ainvoke(
+                input={**initial_state_book},
+                config=config
+                )
             
             print(f"Estado de salida: {output_state}")
 
@@ -204,6 +222,84 @@ async def create_book(request: BookInitRequest, background_tasks: BackgroundTask
         "title": request.title,
         "message": "Proceso de generación de índice iniciado",
     }
+
+
+@app.post("/books/create")
+async def create_book(request: BookContentRequest, background_tasks: BackgroundTasks):
+    
+    """
+    Crea un nuevo libro con el contenido proporcionado.
+    """
+    # Verificar que el libro existe
+    book_path = _get_book_path(request.id)
+    if not os.path.exists(book_path):
+        raise HTTPException(
+            status_code=400, detail=f"El libro con ID {request.id} no existe."
+        )
+        
+     # Crear el grafo
+    book_graph = create_book_generation_graph()
+    checkpointer = InMemorySaver()
+    in_memory_store = InMemoryStore()
+    # Compilar el grafo
+    book_app = book_graph.compile(checkpointer=checkpointer, store=in_memory_store)
+
+    # ID único para el trabajo
+    job_id = str(uuid.uuid4())
+
+
+    thread_id = 1
+    
+    config = {
+        "configurable": {"thread_id": thread_id},
+            }
+
+    # Ejecutar el grafo en segundo plano hasta el punto de generación del índice
+    async def run_graph_task():
+        try:
+            # Inicializar y generar el índice
+            output_state = await book_app.ainvoke(
+                input={
+                    'book_id': request.id,
+                    },
+                config=config
+                )
+            
+            print(f"Estado de salida: {output_state}")
+
+            background_jobs[job_id] = {
+                "status": "completed" if not output_state.get("error") else "error",
+                "error": output_state.get("error", ""),
+                "book_id": output_state.get("book_id", ""),
+                "completed_at": datetime.now().isoformat(),
+            }
+
+            return output_state
+
+        except Exception as e:
+            background_jobs[job_id] = {
+                "status": "error",
+                "error": str(e),
+                "completed_at": datetime.now().isoformat(),
+            }
+            
+    
+    # Iniciar la tarea en segundo plano
+    background_tasks.add_task(run_graph_task)
+
+    # Registrar el trabajo
+    background_jobs[job_id] = {
+        "status": "running",
+        "started_at": datetime.now().isoformat(),
+    }
+
+    return {
+        "job_id": job_id,
+        "book_id": request.id,
+        "message": "Proceso de generación de contenido iniciado",
+    }
+
+    
 
 
 @app.get("/jobs/{job_id}")
@@ -331,8 +427,6 @@ async def download_book(request: DownloadBookRequest):
     Descarga el libro completo en formato seleccionado.
     """
     # Verificar que el libro existe
-    from pdb    import set_trace
-    set_trace()
     
     book_path = _get_book_path(request.book_id)
     if not os.path.exists(book_path):
@@ -347,9 +441,7 @@ async def download_book(request: DownloadBookRequest):
     
     
     file = convert_markdown_to_download_file(book, request.format)
-    
-    from pdb    import set_trace
-    set_trace()
+
     
     if not file:
         raise HTTPException(status_code=500, detail="Error al convertir el libro a formato descargable")
@@ -452,4 +544,4 @@ async def generate_all_chapters(
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("books_gen.api.api:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("books_gen.infrastructure.api.api:app", host="0.0.0.0", port=8000, reload=True)
