@@ -27,7 +27,7 @@ cd books-gen
 2. Instala las dependencias:
 
 ```bash
-pip install -e .
+uv sync
 ```
 
 3. Configura tu API key de Groq:
@@ -45,7 +45,7 @@ GROQ_API_KEY="tu-api-key-de-groq"
 Para iniciar el servidor API y la interfaz web:
 
 ```bash
-python run.py
+uv run .\books_gen\infrastructure\api\api.py
 ```
 
 Por defecto, el servidor se ejecutará en `http://127.0.0.1:8000`.
